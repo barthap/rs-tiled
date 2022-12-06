@@ -235,12 +235,14 @@ impl ObjectData {
         reader: &mut impl ResourceReader,
         cache: &mut impl ResourceCache,
     ) -> Result<ObjectData> {
-        let (id, tile, mut n, mut t, mut w, mut h, mut v, mut r, template, x, y) = get_attrs!(
+        let (id, tile, mut n, t, c, mut w, mut h, mut v, mut r, template, x, y) = get_attrs!(
             for v in attrs {
                 Some("id") => id ?= v.parse(),
                 Some("gid") => tile ?= v.parse::<u32>(),
                 Some("name") => name ?= v.parse(),
+                // Tiled 1.9 renamed type to class so support both
                 Some("type") => obj_type ?= v.parse(),
+                Some("class") => obj_class ?= v.parse(),
                 Some("width") => width ?= v.parse(),
                 Some("height") => height ?= v.parse(),
                 Some("visible") => visible ?= v.parse().map(|x:i32| x == 1),
@@ -249,8 +251,9 @@ impl ObjectData {
                 Some("x") => x ?= v.parse::<f32>(),
                 Some("y") => y ?= v.parse::<f32>(),
             }
-            (id, tile, name, obj_type, width, height, visible, rotation, template, x, y)
+            (id, tile, name, obj_type, obj_class, width, height, visible, rotation, template, x, y)
         );
+        let mut t = t.or(c);
         let x = x.unwrap_or(0.);
         let y = y.unwrap_or(0.);
         let mut tile = tile.and_then(|bits| {

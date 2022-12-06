@@ -67,15 +67,16 @@ impl TileData {
         reader: &mut impl ResourceReader,
         cache: &mut impl ResourceCache,
     ) -> Result<(TileId, TileData)> {
-        let ((tile_type, probability), id) = get_attrs!(
+        let ((tile_type, tile_class, probability), id) = get_attrs!(
             for v in attrs {
                 Some("type") => tile_type ?= v.parse(),
+                Some("class") => tile_class ?= v.parse(),
                 Some("probability") => probability ?= v.parse(),
                 "id" => id ?= v.parse::<u32>(),
             }
-            ((tile_type, probability), id)
+            ((tile_type, tile_class, probability), id)
         );
-
+        let tile_type = tile_type.or(tile_class);
         let mut image = Option::None;
         let mut properties = HashMap::new();
         let mut objectgroup = None;
