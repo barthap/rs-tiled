@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 use tiled::{
-    Color, FiniteTileLayer, GroupLayer, Layer, LayerType, Loader, Map, ObjectLayer, PropertyValue,
-    ResourceCache, TileLayer, WangId,
+    Color, FiniteTileLayer, GroupLayer, Layer, LayerType, Loader, Map, ObjectLayer, ObjectShape,
+    PropertyValue, ResourceCache, TileLayer, TilesetLocation, WangId,
 };
 
 fn as_tile_layer<'map>(layer: Layer<'map>) -> TileLayer<'map> {
     match layer.layer_type() {
-        LayerType::TileLayer(x) => x,
+        LayerType::Tiles(x) => x,
         _ => panic!("Not a tile layer"),
     }
 }
@@ -20,14 +20,14 @@ fn as_finite<'map>(data: TileLayer<'map>) -> FiniteTileLayer<'map> {
 
 fn as_object_layer<'map>(layer: Layer<'map>) -> ObjectLayer<'map> {
     match layer.layer_type() {
-        LayerType::ObjectLayer(x) => x,
+        LayerType::Objects(x) => x,
         _ => panic!("Not an object layer"),
     }
 }
 
 fn as_group_layer<'map>(layer: Layer<'map>) -> GroupLayer<'map> {
     match layer.layer_type() {
-        LayerType::GroupLayer(x) => x,
+        LayerType::Group(x) => x,
         _ => panic!("Not a group layer"),
     }
 }
@@ -161,7 +161,7 @@ fn test_image_layers() {
         .unwrap();
     assert_eq!(r.layers().len(), 2);
     let mut image_layers = r.layers().map(|layer| {
-        if let LayerType::ImageLayer(img) = layer.layer_type() {
+        if let LayerType::Image(img) = layer.layer_type() {
             (img, layer)
         } else {
             panic!("Found layer that isn't an image layer")
@@ -417,6 +417,81 @@ fn test_group_layers() {
     assert_eq!(
         Some(&PropertyValue::StringValue("value3".to_string())),
         layer_tile_3.properties.get("key")
+    );
+}
+
+#[test]
+fn test_object_template_property() {
+    let r = Loader::new()
+        .load_tmx_map("assets/tiled_object_template.tmx")
+        .unwrap();
+
+    let object_layer = as_object_layer(r.get_layer(1).unwrap());
+    let object = object_layer.get_object(0).unwrap(); // The templated object
+    let object_nt = object_layer.get_object(1).unwrap(); // The non-templated object
+
+    // Test core properties
+    assert_eq!(
+        object.shape,
+        ObjectShape::Rect {
+            width: 32.0,
+            height: 32.0
+        }
+    );
+    assert_eq!(object.x, 32.0);
+    assert_eq!(object.y, 32.0);
+
+    // Test properties are copied over
+    assert_eq!(
+        Some(&PropertyValue::IntValue(1)),
+        object.properties.get("property")
+    );
+
+    // Test tileset handling
+    assert_eq!(
+        object.get_tile().unwrap().get_tileset().name,
+        "tilesheet_template"
+    );
+    assert_eq!(
+        object_nt.get_tile().unwrap().get_tileset().name,
+        "tilesheet"
+    );
+    assert!(matches!(
+        object.get_tile().unwrap().tileset_location(),
+        TilesetLocation::Template(..)
+    ));
+    assert_eq!(
+        object_nt.get_tile().unwrap().tileset_location(),
+        &TilesetLocation::Map(0)
+    );
+    assert_eq!(object.get_tile().unwrap().id(), 44);
+    assert_eq!(object_nt.get_tile().unwrap().id(), 44);
+}
+
+#[test]
+fn test_templates() {
+    let mut loader = Loader::new();
+    let map = loader.load_tmx_map("assets/templates/example.tmx").unwrap();
+
+    assert_eq!(loader.cache().templates.len(), 3);
+    assert_eq!(
+        if let LayerType::Tiles(x) = map.get_layer(0).unwrap().layer_type() {
+            x
+        } else {
+            panic!()
+        }
+        .get_tile(0, 0)
+        .unwrap()
+        .get_tileset()
+        .image
+        .as_ref()
+        .unwrap()
+        .source
+        .canonicalize()
+        .unwrap(),
+        PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/tilesheet.png"))
+            .canonicalize()
+            .unwrap()
     );
 }
 
