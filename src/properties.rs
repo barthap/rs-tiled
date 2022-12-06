@@ -82,6 +82,11 @@ pub enum PropertyValue {
     /// An object ID value. Corresponds to the `object` property type.
     /// Holds the id of a referenced object, or 0 if unset.
     ObjectValue(u32),
+    /// Nested properties, tuple (class name, properties)
+    PropertiesValue(String, Properties),
+    /// Enums (tuple (enumtype, value))
+    /// TODO: multi value ones
+    EnumValue(String, String),
 }
 
 impl PropertyValue {
@@ -135,30 +140,43 @@ pub(crate) fn parse_properties(
     let mut p = HashMap::new();
     parse_tag!(parser, "properties", {
         "property" => |attrs:Vec<OwnedAttribute>| {
-            let (t, v_attr, k) = get_attrs!(
+            let (t, st, v_attr, k) = get_attrs!(
                 for attr in attrs {
                     Some("type") => obj_type = attr,
                     Some("value") => value = attr,
+                    Some("propertytype") => subprop_type = attr,
                     "name" => name = attr
                 }
-                (obj_type, value, name)
+                (obj_type, subprop_type, value, name)
             );
             let t = t.unwrap_or_else(|| "string".to_owned());
 
-            let v: String = match v_attr {
-                Some(val) => val,
-                None => {
-                    // if the "value" attribute was missing, might be a multiline string
-                    match parser.next() {
-                        Some(Ok(XmlEvent::Characters(s))) => Ok(s),
-                        Some(Err(err)) => Err(Error::XmlDecodingError(err)),
-                        None => unreachable!(), // EndDocument or error must come first
-                        _ => Err(Error::MalformedAttributes(format!("property '{}' is missing a value", k))),
-                    }?
-                }
-            };
+            if t == "class" {
+                // nested properties object
+                let obj_class = st.expect("class name should be string");
+                let properties = parse_properties(parser)?;
+                p.insert(k, PropertyValue::PropertiesValue(obj_class, properties));
+            } else if st.is_some() && v_attr.is_some() {
+                // enum
+                p.insert(k, PropertyValue::EnumValue(st.unwrap(), v_attr.unwrap()));
+            } 
+            else {
+                let v: String = match v_attr {
+                    Some(val) => val,
+                    None => {
+                        // if the "value" attribute was missing, might be a multiline string
+                        match parser.next() {
+                            Some(Ok(XmlEvent::Characters(s))) => Ok(s),
+                            Some(Err(err)) => Err(Error::XmlDecodingError(err)),
+                            None => unreachable!(), // EndDocument or error must come first
+                            _ => Err(Error::MalformedAttributes(format!("property '{}' is missing a value", k))),
+                        }?
+                    }
+                };
+    
+                p.insert(k, PropertyValue::new(t, v)?);
+            }
 
-            p.insert(k, PropertyValue::new(t, v)?);
             Ok(())
         },
     });
