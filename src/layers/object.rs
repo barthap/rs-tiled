@@ -15,6 +15,8 @@ pub struct ObjectLayerData {
     objects: Vec<ObjectData>,
     /// The color used in the editor to display objects in this layer.
     pub colour: Option<Color>,
+    /// The type of the layer, which is arbitrary and set by the user.
+    pub layer_type: String,
 }
 
 impl ObjectLayerData {
@@ -30,11 +32,12 @@ impl ObjectLayerData {
         reader: &mut impl ResourceReader,
         cache: &mut impl ResourceCache,
     ) -> Result<(ObjectLayerData, Properties)> {
-        let c = get_attrs!(
+        let (c, t) = get_attrs!(
             for v in attrs {
                 Some("color") => color ?= v.parse(),
+                Some("class") => layer_type ?= v.parse(),
             }
-            color
+            (color, layer_type)
         );
         let mut objects = Vec::new();
         let mut properties = HashMap::new();
@@ -48,7 +51,14 @@ impl ObjectLayerData {
                 Ok(())
             },
         });
-        Ok((ObjectLayerData { objects, colour: c }, properties))
+        Ok((
+            ObjectLayerData {
+                objects,
+                colour: c,
+                layer_type: t.unwrap_or_default(),
+            },
+            properties,
+        ))
     }
 
     /// Returns the data belonging to the objects contained within the layer, in the order they were

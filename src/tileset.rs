@@ -60,6 +60,9 @@ pub struct Tileset {
 
     /// The custom properties of the tileset.
     pub properties: Properties,
+
+    /// The custom tileset class, arbitrarily set by the user.
+    pub tileset_type: String,
 }
 
 pub(crate) enum EmbeddedParseResultType {
@@ -79,6 +82,7 @@ struct TilesetProperties {
     tilecount: u32,
     columns: Option<u32>,
     name: String,
+    class: String,
     tile_width: u32,
     tile_height: u32,
     /// The root all non-absolute paths contained within the tileset are relative to.
@@ -125,18 +129,23 @@ impl Tileset {
         reader: &mut impl ResourceReader,
         cache: &mut impl ResourceCache,
     ) -> Result<EmbeddedParseResult> {
-        let ((spacing, margin, columns, name), (tilecount, first_gid, tile_width, tile_height)) = get_attrs!(
+        let (
+            (spacing, margin, columns, name, class),
+            (tilecount, first_gid, tile_width, tile_height),
+        ) = get_attrs!(
            for v in attrs {
             Some("spacing") => spacing ?= v.parse(),
             Some("margin") => margin ?= v.parse(),
             Some("columns") => columns ?= v.parse(),
             Some("name") => name = v,
+            Some("class") => class ?= v.parse(),
+
             "tilecount" => tilecount ?= v.parse::<u32>(),
             "firstgid" => first_gid ?= v.parse::<u32>().map(Gid),
             "tilewidth" => tile_width ?= v.parse::<u32>(),
             "tileheight" => tile_height ?= v.parse::<u32>(),
            }
-           ((spacing, margin, columns, name), (tilecount, first_gid, tile_width, tile_height))
+           ((spacing, margin, columns, name, class), (tilecount, first_gid, tile_width, tile_height))
         );
 
         let root_path = path.parent().ok_or(Error::PathIsNotFile)?.to_owned();
@@ -147,6 +156,7 @@ impl Tileset {
                 spacing,
                 margin,
                 name: name.unwrap_or_default(),
+                class: class.unwrap_or_default(),
                 root_path,
                 columns,
                 tilecount,
@@ -189,18 +199,19 @@ impl Tileset {
         reader: &mut impl ResourceReader,
         cache: &mut impl ResourceCache,
     ) -> Result<Tileset> {
-        let ((spacing, margin, columns, name), (tilecount, tile_width, tile_height)) = get_attrs!(
+        let ((spacing, margin, columns, name, class), (tilecount, tile_width, tile_height)) = get_attrs!(
             for v in attrs {
                 Some("spacing") => spacing ?= v.parse(),
                 Some("margin") => margin ?= v.parse(),
                 Some("columns") => columns ?= v.parse(),
                 Some("name") => name = v,
+                Some("class") => class ?= v.parse(),
 
                 "tilecount" => tilecount ?= v.parse::<u32>(),
                 "tilewidth" => tile_width ?= v.parse::<u32>(),
                 "tileheight" => tile_height ?= v.parse::<u32>(),
             }
-            ((spacing, margin, columns, name), (tilecount, tile_width, tile_height))
+            ((spacing, margin, columns, name, class), (tilecount, tile_width, tile_height))
         );
 
         let root_path = path.parent().ok_or(Error::PathIsNotFile)?.to_owned();
@@ -211,6 +222,7 @@ impl Tileset {
                 spacing,
                 margin,
                 name: name.unwrap_or_default(),
+                class: class.unwrap_or_default(),
                 root_path,
                 columns,
                 tilecount,
@@ -272,6 +284,7 @@ impl Tileset {
 
         Ok(Tileset {
             name: prop.name,
+            tileset_type: prop.class,
             tile_width: prop.tile_width,
             tile_height: prop.tile_height,
             spacing,
