@@ -67,6 +67,29 @@ pub struct Tileset {
 
     /// The custom tileset type, arbitrarily set by the user.
     pub user_type: Option<String>,
+
+    /// Tile size source for rendering. Can be either tileset based or map based.
+    pub tile_render_size: TileRenderSize,
+}
+
+/// Tile size source for rendering. Can be either tileset based or map based.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum TileRenderSize {
+    /// Tiles are rendered with tileset tile size (default)
+    #[default]
+    Tile,
+    /// Tiles are rendered with map grid size
+    MapGrid,
+}
+
+impl std::str::FromStr for TileRenderSize {
+    type Err = self::Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "grid" => Ok(TileRenderSize::MapGrid),
+            _ => Ok(TileRenderSize::default()),
+        }
+    }
 }
 
 pub(crate) enum EmbeddedParseResultType {
@@ -91,6 +114,7 @@ struct TilesetProperties {
     tile_height: u32,
     /// The root all non-absolute paths contained within the tileset are relative to.
     root_path: PathBuf,
+    tile_render_size: TileRenderSize,
 }
 
 impl Tileset {
@@ -134,7 +158,7 @@ impl Tileset {
         cache: &mut impl ResourceCache,
     ) -> Result<EmbeddedParseResult> {
         let (
-            (spacing, margin, columns, name, user_type, user_class),
+            (spacing, margin, columns, name, user_type, user_class, trs),
             (tilecount, first_gid, tile_width, tile_height),
         ) = get_attrs!(
            for v in attrs {
@@ -144,13 +168,14 @@ impl Tileset {
             Some("name") => name = v,
             Some("type") => user_type ?= v.parse(),
             Some("class") => user_class ?= v.parse(),
+            Some("tilerendersize") => trs ?= v.parse(),
 
             "tilecount" => tilecount ?= v.parse::<u32>(),
             "firstgid" => first_gid ?= v.parse::<u32>().map(Gid),
             "tilewidth" => tile_width ?= v.parse::<u32>(),
             "tileheight" => tile_height ?= v.parse::<u32>(),
            }
-           ((spacing, margin, columns, name, user_type, user_class), (tilecount, first_gid, tile_width, tile_height))
+           ((spacing, margin, columns, name, user_type, user_class, trs), (tilecount, first_gid, tile_width, tile_height))
         );
 
         let root_path = path.parent().ok_or(Error::PathIsNotFile)?.to_owned();
@@ -167,6 +192,7 @@ impl Tileset {
                 tilecount,
                 tile_height,
                 tile_width,
+                tile_render_size: trs.unwrap_or_default(),
             },
             reader,
             cache,
@@ -205,7 +231,7 @@ impl Tileset {
         cache: &mut impl ResourceCache,
     ) -> Result<Tileset> {
         let (
-            (spacing, margin, columns, name, user_type, user_class),
+            (spacing, margin, columns, name, user_type, user_class, trs),
             (tilecount, tile_width, tile_height),
         ) = get_attrs!(
             for v in attrs {
@@ -215,12 +241,13 @@ impl Tileset {
                 Some("name") => name = v,
                 Some("type") => user_type ?= v.parse(),
                 Some("class") => user_class ?= v.parse(),
+                Some("tilerendersize") => trs ?= v.parse(),
 
                 "tilecount" => tilecount ?= v.parse::<u32>(),
                 "tilewidth" => tile_width ?= v.parse::<u32>(),
                 "tileheight" => tile_height ?= v.parse::<u32>(),
             }
-            ((spacing, margin, columns, name, user_type, user_class), (tilecount, tile_width, tile_height))
+            ((spacing, margin, columns, name, user_type, user_class, trs), (tilecount, tile_width, tile_height))
         );
 
         let root_path = path.parent().ok_or(Error::PathIsNotFile)?.to_owned();
@@ -237,6 +264,7 @@ impl Tileset {
                 tilecount,
                 tile_height,
                 tile_width,
+                tile_render_size: trs.unwrap_or_default(),
             },
             reader,
             cache,
@@ -311,6 +339,7 @@ impl Tileset {
             tiles,
             wang_sets,
             properties,
+            tile_render_size: prop.tile_render_size,
         })
     }
 
